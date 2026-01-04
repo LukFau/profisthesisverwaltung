@@ -1,0 +1,363 @@
+/* =========================================
+   1. THEME VARIABLEN & GRUNDLAGEN
+   ========================================= */
+
+:root {
+    --bg-app: #f3f4f6;
+    --bg-card: #ffffff;
+    --text-main: #1f2937;
+    --text-muted: #6b7280;
+    --border-color: #e5e7eb;
+    --input-bg: #ffffff;
+    --input-border: #d1d5db;
+    --highlight-hover: #f9fafb;
+}
+
+[data-bs-theme="dark"] {
+    --bg-app: #111827;
+    --bg-card: #1f2937;
+    --text-main: #f3f4f6;
+    --text-muted: #9ca3af;
+    --border-color: #374151;
+    --input-bg: #374151;
+    --input-border: #4b5563;
+    --highlight-hover: #374151;
+}
+
+/* WICHTIG: Überschreibt "text-dark" im Dark Mode, damit man Titel lesen kann */
+[data-bs-theme="dark"] .text-dark {
+    color: var(--text-main) !important;
+}
+
+body {
+    background-color: var(--bg-app);
+    color: var(--text-main);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+    margin: 0;
+}
+
+.app-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: var(--bg-app);
+    width: 100%;
+}
+
+.main-content {
+    margin-left: 260px;
+    flex-grow: 1;
+    padding: 2rem;
+    width: calc(100% - 260px);
+    background-color: var(--bg-app);
+}
+
+/* =========================================
+   2. SIDEBAR (Layout Fix)
+   ========================================= */
+
+.sidebar {
+    width: 260px;
+    background-color: var(--bg-card);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column; /* Stapelt Elemente vertikal */
+    position: fixed;
+    height: 100vh;
+    z-index: 1000;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+.sidebar-header {
+    padding: 1.5rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #4f46e5;
+    flex-shrink: 0; /* Header darf nicht schrumpfen */
+}
+
+/* WICHTIG: Das Menü nimmt den ganzen Platz ein und drückt den Footer nach unten */
+.sidebar-menu {
+    flex-grow: 1;
+    overflow-y: auto; /* Scrollbar, falls Menü zu lang wird */
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Footer Bereich fixieren */
+.sidebar-footer {
+    flex-shrink: 0; /* Darf nicht schrumpfen */
+    padding: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-card); /* Damit beim Scrollen nichts durchscheint */
+}
+
+.menu-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 700;
+    padding: 1rem 1.5rem 0.5rem 1.5rem;
+}
+
+.menu-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1.5rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+}
+
+.menu-item:hover {
+    background-color: var(--bg-app);
+    color: var(--text-main);
+}
+
+.menu-item.active {
+    background-color: rgba(79, 70, 229, 0.1);
+    color: #4f46e5;
+    border-left-color: #4f46e5;
+}
+
+.menu-icon {
+    margin-right: 10px;
+    width: 20px;
+    text-align: center;
+}
+
+/* =========================================
+   3. WEITERE KOMPONENTEN
+   ========================================= */
+
+.custom-card {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    background-color: var(--bg-card);
+    color: var(--text-main);
+    padding: 2rem;
+    margin-top: 2rem;
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+/* Kacheln */
+.stat-card {
+    background-color: var(--bg-card);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    height: 100%;
+    border: 1px solid var(--border-color);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s;
+}
+
+.stat-card:hover {
+    transform: scale(1.03) translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+    border-color: #4f46e5;
+    cursor: pointer;
+    z-index: 10;
+}
+
+.stat-details h6 {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.stat-details h3 {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+/* Formulare */
+.form-label {
+    color: var(--text-main);
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.form-control, .form-select {
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text-main);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: var(--input-bg);
+    color: var(--text-main);
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+
+/* Suchleiste */
+.search-group .input-group-text {
+    background-color: var(--input-bg);
+    border: 1px solid var(--input-border);
+    border-right: none;
+    color: var(--text-muted);
+}
+.search-group .form-control {
+    border-left: none;
+}
+.search-group:focus-within .input-group-text,
+.search-group:focus-within .form-control {
+    border-color: #4f46e5;
+}
+
+/* Tabellen */
+.table {
+    color: var(--text-main);
+    border-color: var(--border-color);
+}
+.table thead th {
+    background-color: var(--bg-app);
+    color: var(--text-muted);
+    border-bottom: 2px solid var(--border-color);
+}
+.table-hover tbody tr:hover td,
+.table-hover tbody tr:hover th {
+    background-color: var(--highlight-hover);
+    color: var(--text-main) !important;
+}
+.table td, .table th {
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Buttons */
+.btn-primary-custom {
+    background-color: #4f46e5;
+    border-color: #4f46e5;
+    color: white !important;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+}
+.btn-primary-custom:hover {
+    background-color: #4338ca;
+    border-color: #4338ca;
+    color: white !important;
+}
+
+.btn-secondary-custom {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    margin-right: 1rem;
+}
+.btn-secondary-custom:hover {
+    background-color: var(--highlight-hover);
+    border-color: var(--text-muted) !important;
+    color: var(--text-main) !important;
+}
+
+h1, h2, h3, h4, h5, h6 { color: var(--text-main); }
+.text-muted-custom { color: var(--text-muted); }
+.form-container { max-width: 1000px; margin: 0 auto; }
+
+/* --- DASHBOARD DESIGN UPDATE --- */
+
+/* 1. Die Kacheln (Cards) - Sauberer Look */
+.stat-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color); /* Dezent */
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02); /* Ganz zarter Schatten */
+    transition: all 0.2s ease-in-out;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+    border-color: #4f46e5;
+    cursor: pointer;
+}
+
+/* 2. Die Icons (Farben exakt wie im Screenshot) */
+.stat-icon-wrapper {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px; /* Abgerundete Ecken */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-right: 1.2rem;
+    flex-shrink: 0;
+}
+
+/* Exakte Farben aus dem Design */
+.bg-blue-light {
+    background-color: #e0f2fe; /* Ganz helles Blau */
+    color: #0284c7;            /* Kräftiges Blau */
+}
+
+.bg-yellow-light {
+    background-color: #fef3c7; /* Helles Gelb/Beige */
+    color: #d97706;            /* Dunkles Orange-Gelb */
+}
+
+.bg-orange-light {
+    background-color: #ffedd5; /* Helles Orange */
+    color: #ea580c;            /* Dunkles Orange */
+}
+
+.bg-green-light {
+    background-color: #dcfce7; /* Helles Mint-Grün */
+    color: #16a34a;            /* Dunkles Grün */
+}
+
+/* 3. Typografie in den Cards */
+.stat-details h6 {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase; /* MACHT ALLES GROSS */
+    letter-spacing: 0.5px;
+    margin-bottom: 0.2rem;
+}
+
+.stat-details h3 {
+    font-size: 1.8rem;
+    font-weight: 800; /* Sehr fett */
+    color: var(--text-main);
+    margin: 0;
+    line-height: 1.1;
+}
+
+/* 4. Tabellen-Header Design (wie im "Rechten Bild") */
+.dashboard-table-header th {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1rem;
+    background-color: transparent !important; /* Kein grauer Hintergrund */
+}
