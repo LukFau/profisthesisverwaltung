@@ -16,10 +16,10 @@ function App() {
                 <Route path="/" element={<Layout />}>
 
                     {/* Startseite ist jetzt die Liste, oder du änderst es zu DashboardHome */}
-                    <Route index element={<ThesisList />} />
+                    <Route index element={<DashboardHome />} />
 
                     {/* Das neue Dashboard mit den Kacheln */}
-                    <Route path="dashboard" element={<DashboardHome />} />
+                    <Route path="theses" element={<ThesisList />} />
 
                     {/* Formulare */}
                     <Route path="new" element={<ThesisForm />} />

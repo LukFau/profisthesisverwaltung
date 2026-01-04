@@ -17,4 +17,9 @@ public class Betreuer {
     private String nachname;
     private String titel;
     private String rolle;
+    private String email;
+
+    @ManyToOne
+    @JoinColumn(name = "fachbereich_id")
+    private Fachbereich fachbereich;
 }

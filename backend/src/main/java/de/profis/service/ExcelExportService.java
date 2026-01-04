@@ -1,7 +1,8 @@
 package de.profis.service;
 
+import de.profis.model.Betreuer;
+import de.profis.model.Studierende;
 import de.profis.model.WissenschaftlicheArbeit;
-import de.profis.repository.WissenschaftlicheArbeitRepository;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
@@ -14,69 +15,135 @@ import java.util.List;
 @Service
 public class ExcelExportService {
 
-    private final WissenschaftlicheArbeitRepository arbeitRepo;
+    // --- NEU: Hauptmethode für kombinierten Export ---
+    public ByteArrayInputStream exportCombined(List<WissenschaftlicheArbeit> theses,
+                                               List<Studierende> students,
+                                               List<Betreuer> betreuer) {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-    public ExcelExportService(WissenschaftlicheArbeitRepository arbeitRepo) {
-        this.arbeitRepo = arbeitRepo;
-    }
-
-    public ByteArrayInputStream exportThesesToExcel() {
-        // 1. Daten laden
-        List<WissenschaftlicheArbeit> arbeiten = arbeitRepo.findAll();
-
-        // 2. Excel Workbook erstellen
-        try (Workbook workbook = new XSSFWorkbook();
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-
-            Sheet sheet = workbook.createSheet("Wissenschaftliche Arbeiten");
-
-            // Header Zeile definieren
-            String[] headers = {"ID", "Titel", "Typ", "Status", "Student", "Matrikelnr", "Semester"};
-            Row headerRow = sheet.createRow(0);
-
-            // Styling für Header (Fett gedruckt)
-            CellStyle headerCellStyle = workbook.createCellStyle();
-            Font font = workbook.createFont();
-            font.setBold(true);
-            headerCellStyle.setFont(font);
-
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                cell.setCellStyle(headerCellStyle);
+            // Wir fügen Sheets nur hinzu, wenn die Liste nicht null ist
+            if (theses != null) {
+                createThesesSheet(workbook, theses);
             }
-
-            // 3. Daten Zeilen füllen
-            int rowIdx = 1;
-            for (WissenschaftlicheArbeit arbeit : arbeiten) {
-                Row row = sheet.createRow(rowIdx++);
-
-                row.createCell(0).setCellValue(arbeit.getId());
-                row.createCell(1).setCellValue(arbeit.getTitel());
-                row.createCell(2).setCellValue(arbeit.getTyp());
-                row.createCell(3).setCellValue(arbeit.getStatus());
-
-                // Null-Checks für Relationen
-                if (arbeit.getStudierende() != null) {
-                    row.createCell(4).setCellValue(arbeit.getStudierende().getNachname() + ", " + arbeit.getStudierende().getVorname());
-                    row.createCell(5).setCellValue(arbeit.getStudierende().getMatrikelnummer());
-                }
-
-                if (arbeit.getSemester() != null) {
-                    row.createCell(6).setCellValue(arbeit.getSemester().getBezeichnung());
-                }
+            if (students != null) {
+                createStudentsSheet(workbook, students);
             }
-
-            // Spaltenbreite automatisch anpassen
-            for(int i = 0; i < headers.length; i++) {
-                sheet.autoSizeColumn(i);
+            if (betreuer != null) {
+                createBetreuerSheet(workbook, betreuer);
             }
 
             workbook.write(out);
             return new ByteArrayInputStream(out.toByteArray());
-
         } catch (IOException e) {
-            throw new RuntimeException("Fehler beim Erzeugen der Excel-Datei: " + e.getMessage());
+            throw new RuntimeException("Fehler beim Excel-Export: " + e.getMessage());
         }
+    }
+
+    // --- Wrapper für Einzel-Exports (falls du die alten Endpunkte behalten willst) ---
+    public ByteArrayInputStream exportThesesToExcel(List<WissenschaftlicheArbeit> theses) {
+        return exportCombined(theses, null, null);
+    }
+    public ByteArrayInputStream exportStudentsToExcel(List<Studierende> students) {
+        return exportCombined(null, students, null);
+    }
+    public ByteArrayInputStream exportBetreuerToExcel(List<Betreuer> betreuer) {
+        return exportCombined(null, null, betreuer);
+    }
+
+    // --- Private Helper Methoden zum Füllen der Sheets ---
+
+    private void createThesesSheet(Workbook workbook, List<WissenschaftlicheArbeit> theses) {
+        Sheet sheet = workbook.createSheet("Arbeiten");
+        Row headerRow = sheet.createRow(0);
+        String[] columns = {"ID", "Titel", "Typ", "Status", "Student", "Matrikelnr.", "Studiengang", "Erstprüfer", "Note Arbeit", "Note Kolloquium"};
+
+        for (int i = 0; i < columns.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(columns[i]);
+            cell.setCellStyle(getHeaderStyle(workbook));
+        }
+
+        int rowIdx = 1;
+        for (WissenschaftlicheArbeit thesis : theses) {
+            Row row = sheet.createRow(rowIdx++);
+            row.createCell(0).setCellValue(thesis.getId());
+            row.createCell(1).setCellValue(thesis.getTitel());
+            row.createCell(2).setCellValue(thesis.getTyp());
+            row.createCell(3).setCellValue(thesis.getStatus());
+
+            if (thesis.getStudierende() != null) {
+                row.createCell(4).setCellValue(thesis.getStudierende().getVorname() + " " + thesis.getStudierende().getNachname());
+                row.createCell(5).setCellValue(thesis.getStudierende().getMatrikelnummer());
+                if (thesis.getStudiengang() != null) {
+                    row.createCell(6).setCellValue(thesis.getStudiengang().getBezeichnung());
+                }
+            }
+
+            thesis.getNoten().stream()
+                    .filter(n -> "Erstprüfer".equalsIgnoreCase(n.getRolle()) && n.getBetreuer() != null)
+                    .findFirst()
+                    .ifPresent(n -> {
+                        row.createCell(7).setCellValue(n.getBetreuer().getVorname() + " " + n.getBetreuer().getNachname());
+                        if (n.getNoteArbeit() != null) row.createCell(8).setCellValue(n.getNoteArbeit());
+                        if (n.getNoteKolloquium() != null) row.createCell(9).setCellValue(n.getNoteKolloquium());
+                    });
+        }
+        for(int i=0; i<columns.length; i++) sheet.autoSizeColumn(i);
+    }
+
+    private void createStudentsSheet(Workbook workbook, List<Studierende> students) {
+        Sheet sheet = workbook.createSheet("Studierende");
+        String[] columns = {"ID", "Vorname", "Nachname", "Matrikelnummer", "E-Mail"};
+
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < columns.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(columns[i]);
+            cell.setCellStyle(getHeaderStyle(workbook));
+        }
+
+        int rowIdx = 1;
+        for (Studierende s : students) {
+            Row row = sheet.createRow(rowIdx++);
+            row.createCell(0).setCellValue(s.getId());
+            row.createCell(1).setCellValue(s.getVorname());
+            row.createCell(2).setCellValue(s.getNachname());
+            row.createCell(3).setCellValue(s.getMatrikelnummer());
+            row.createCell(4).setCellValue(s.getEmail());
+        }
+        for(int i=0; i<columns.length; i++) sheet.autoSizeColumn(i);
+    }
+
+    private void createBetreuerSheet(Workbook workbook, List<Betreuer> betreuer) {
+        Sheet sheet = workbook.createSheet("Referenten");
+        String[] columns = {"ID", "Titel", "Vorname", "Nachname", "E-Mail", "Fachbereich"};
+
+        Row headerRow = sheet.createRow(0);
+        for (int i = 0; i < columns.length; i++) {
+            Cell cell = headerRow.createCell(i);
+            cell.setCellValue(columns[i]);
+            cell.setCellStyle(getHeaderStyle(workbook));
+        }
+
+        int rowIdx = 1;
+        for (Betreuer b : betreuer) {
+            Row row = sheet.createRow(rowIdx++);
+            row.createCell(0).setCellValue(b.getId());
+            row.createCell(1).setCellValue(b.getTitel());
+            row.createCell(2).setCellValue(b.getVorname());
+            row.createCell(3).setCellValue(b.getNachname());
+            row.createCell(4).setCellValue(b.getEmail());
+            // FIX: Hier nutzen wir jetzt korrekt getFbname()
+            if (b.getFachbereich() != null) row.createCell(5).setCellValue(b.getFachbereich().getFbname());
+        }
+        for(int i=0; i<columns.length; i++) sheet.autoSizeColumn(i);
+    }
+
+    private CellStyle getHeaderStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        style.setFont(font);
+        return style;
     }
 }

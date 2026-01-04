@@ -34,7 +34,7 @@ const Sidebar = () => {
         <aside className="sidebar">
             {/* Header / Logo Bereich */}
             <div className="sidebar-header">
-                <Link to="/dashboard" style={{ textDecoration: 'none', color: 'inherit' }}>
+                <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
                     TMS <span style={{fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.9rem'}}>MANAGER</span>
                 </Link>
             </div>
@@ -44,7 +44,7 @@ const Sidebar = () => {
                 {/* Sektion: Verwaltung */}
                 <div className="menu-label">VERWALTUNG</div>
                 <li>
-                    <NavLink to="/" className={({ isActive }) => isActive ? "menu-item active" : "menu-item"}>
+                    <NavLink to="/theses" className={({ isActive }) => isActive ? "menu-item active" : "menu-item"}>
                         <span className="menu-icon">📁</span> Arbeiten
                     </NavLink>
                 </li>

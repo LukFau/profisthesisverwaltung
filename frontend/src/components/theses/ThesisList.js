@@ -4,17 +4,32 @@ import api from '../../api/axiosConfig';
 import '../../App.css';
 
 const ThesisList = () => {
+    // --- States für Daten ---
     const [theses, setTheses] = useState([]);
     const [filteredTheses, setFilteredTheses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // --- States für Suche & Filter ---
     const [searchTerm, setSearchTerm] = useState("");
-
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const statusFilter = searchParams.get('status') || '';
 
+    // --- States für Export Model ---
+    const [showExportModal, setShowExportModal] = useState(false);
+
+    // NEU: Auswahl-Objekt für Checkboxen
+    const [exportSelection, setExportSelection] = useState({
+        theses: true,
+        students: false,
+        betreuer: false
+    });
+
+    const [selectedStatuses, setSelectedStatuses] = useState([]);
+    const allStatuses = ['in Planung', 'in Bearbeitung', 'Kolloquium planen', 'abgeschlossen', 'Abbruch'];
+
+    // 1. Daten laden (Unverändert)
     useEffect(() => {
         const fetchTheses = async () => {
             try {
@@ -23,20 +38,17 @@ const ThesisList = () => {
                 setLoading(false);
             } catch (err) {
                 console.error("API Fehler:", err);
-                setError("Verbindung zum Server fehlgeschlagen.");
+                setError("Verbindung fehlgeschlagen.");
                 setLoading(false);
             }
         };
         fetchTheses();
     }, []);
 
+    // 2. Filter Logik (Unverändert)
     useEffect(() => {
         let results = theses;
-
-        if (statusFilter) {
-            results = results.filter(t => t.status === statusFilter);
-        }
-
+        if (statusFilter) results = results.filter(t => t.status === statusFilter);
         if (searchTerm) {
             const lowerTerm = searchTerm.toLowerCase();
             results = results.filter(t =>
@@ -44,9 +56,7 @@ const ThesisList = () => {
                 (t.studentName && t.studentName.toLowerCase().includes(lowerTerm))
             );
         }
-
         setFilteredTheses(results);
-
     }, [statusFilter, searchTerm, theses]);
 
     const handleFilterChange = (e) => {
@@ -55,19 +65,70 @@ const ThesisList = () => {
         else setSearchParams({});
     };
 
-    const handleExport = async (e) => {
+    // --- EXPORT LOGIK (NEU) ---
+    const openExportModal = (e) => {
         e.stopPropagation();
+        setShowExportModal(true);
+        setSelectedStatuses(allStatuses); // Standard: Alle Status
+        setExportSelection({ theses: true, students: false, betreuer: false }); // Reset
+    };
+
+    // Handler für die Auswahl-Checkboxen (Was soll exportiert werden?)
+    const handleSelectionChange = (type) => {
+        setExportSelection(prev => ({
+            ...prev,
+            [type]: !prev[type]
+        }));
+    };
+
+    // Handler für Status-Checkboxen (Nur relevant wenn 'theses' true ist)
+    const handleStatusCheckboxChange = (status) => {
+        if (selectedStatuses.includes(status)) {
+            setSelectedStatuses(selectedStatuses.filter(s => s !== status));
+        } else {
+            setSelectedStatuses([...selectedStatuses, status]);
+        }
+    };
+
+    const handleConfirmExport = async () => {
         try {
-            const response = await api.get('/export/theses', { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
+            // Wir nutzen jetzt IMMER den kombinierten Endpoint
+            const url = '/export/combined';
+            const params = {
+                includeTheses: exportSelection.theses,
+                includeStudents: exportSelection.students,
+                includeBetreuer: exportSelection.betreuer
+            };
+
+            // Status-Liste nur hinzufügen, wenn Theses ausgewählt sind UND nicht alle gewählt wurden
+            if (exportSelection.theses && selectedStatuses.length > 0 && selectedStatuses.length < allStatuses.length) {
+                params.status = selectedStatuses;
+            }
+
+            // Validierung: Mindestens eins muss gewählt sein
+            if (!exportSelection.theses && !exportSelection.students && !exportSelection.betreuer) {
+                alert("Bitte wählen Sie mindestens eine Kategorie aus.");
+                return;
+            }
+
+            const response = await api.get(url, {
+                params: params,
+                paramsSerializer: { indexes: null },
+                responseType: 'blob'
+            });
+
+            const downloadUrl = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', 'theses_export.xlsx');
+            link.href = downloadUrl;
+            link.setAttribute('download', `export_daten.xlsx`);
             document.body.appendChild(link);
             link.click();
             link.remove();
+
+            setShowExportModal(false);
         } catch (err) {
             alert("Export fehlgeschlagen.");
+            console.error(err);
         }
     };
 
@@ -91,8 +152,9 @@ const ThesisList = () => {
     if (error) return <div className="alert alert-danger container mt-5">{error}</div>;
 
     return (
-        <div className="container form-container" style={{ maxWidth: '1200px' }}>
+        <div className="container form-container" style={{ maxWidth: '1200px', position: 'relative' }}>
 
+            {/* Header & Toolbar (Unverändert) */}
             <div className="d-flex justify-content-between align-items-end mt-4 mb-3">
                 <div>
                     <h2>Wissenschaftliche Arbeiten</h2>
@@ -100,27 +162,12 @@ const ThesisList = () => {
                 </div>
 
                 <div className="d-flex align-items-center gap-2">
-
-                    {/* --- FIX: bg-white entfernt! --- */}
                     <div className="input-group search-group" style={{width: '250px'}}>
-                        <span className="input-group-text border-end-0">
-                            🔍
-                        </span>
-                        <input
-                            type="text"
-                            className="form-control border-start-0 ps-0"
-                            placeholder="Suchen..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                        <span className="input-group-text border-end-0">🔍</span>
+                        <input type="text" className="form-control border-start-0 ps-0" placeholder="Suchen..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                     </div>
 
-                    <select
-                        className="form-select"
-                        style={{width: '180px', cursor: 'pointer'}}
-                        value={statusFilter}
-                        onChange={handleFilterChange}
-                    >
+                    <select className="form-select" style={{width: '180px', cursor: 'pointer'}} value={statusFilter} onChange={handleFilterChange}>
                         <option value="">Alle Status</option>
                         <option value="in Planung">In Planung</option>
                         <option value="in Bearbeitung">In Bearbeitung</option>
@@ -129,16 +176,15 @@ const ThesisList = () => {
                         <option value="Abbruch">Abbruch</option>
                     </select>
 
-                    <button onClick={handleExport} className="btn btn-secondary-custom d-flex align-items-center" title="Excel Export">
+                    <button onClick={openExportModal} className="btn btn-secondary-custom d-flex align-items-center" title="Excel Export">
                         <span className="me-2">📊</span> Export
                     </button>
 
-                    <Link to="/new" className="btn btn-primary-custom text-nowrap">
-                        + Neu
-                    </Link>
+                    <Link to="/new" className="btn btn-primary-custom text-nowrap">+ Neu</Link>
                 </div>
             </div>
 
+            {/* Tabelle (Unverändert) */}
             <div className="custom-card p-0 overflow-hidden">
                 <div className="table-responsive">
                     <table className="table table-hover align-middle mb-0">
@@ -154,12 +200,7 @@ const ThesisList = () => {
                         </thead>
                         <tbody>
                         {filteredTheses.map((thesis) => (
-                            <tr
-                                key={thesis.id}
-                                onClick={() => navigate(`/edit/${thesis.id}`)}
-                                style={{cursor: 'pointer'}}
-                                title="Klicken zum Bearbeiten"
-                            >
+                            <tr key={thesis.id} onClick={() => navigate(`/edit/${thesis.id}`)} style={{cursor: 'pointer'}}>
                                 <td className="ps-4 py-3">
                                     <div className="fw-bold text-dark">{thesis.titel}</div>
                                     <small className="text-muted">{thesis.typ}</small>
@@ -170,37 +211,109 @@ const ThesisList = () => {
                                 </td>
                                 <td>
                                     <span className="text-dark">{thesis.studiengang}</span>
-                                    <br/>
-                                    <small className="text-muted">{thesis.semester}</small>
+                                    <br/><small className="text-muted">{thesis.semester}</small>
                                 </td>
                                 <td>
-                                    {thesis.erstpruefer ? (
-                                        <span className="text-dark">{thesis.erstpruefer}</span>
-                                    ) : (
-                                        <span className="text-muted small">-</span>
-                                    )}
+                                    {thesis.erstpruefer ? <span className="text-dark">{thesis.erstpruefer}</span> : <span className="text-muted small">-</span>}
                                 </td>
-                                <td>
-                                        <span className={`badge rounded-pill ${getStatusBadge(thesis.status)}`}>
-                                            {thesis.status}
-                                        </span>
-                                </td>
-                                <td className="pe-4 text-end text-muted">
-                                    {formatDate(thesis.abgabedatum)}
-                                </td>
+                                <td><span className={`badge rounded-pill ${getStatusBadge(thesis.status)}`}>{thesis.status}</span></td>
+                                <td className="pe-4 text-end text-muted">{formatDate(thesis.abgabedatum)}</td>
                             </tr>
                         ))}
-                        {filteredTheses.length === 0 && (
-                            <tr>
-                                <td colSpan="6" className="text-center py-5 text-muted">
-                                    {searchTerm ? `Keine Ergebnisse für "${searchTerm}" gefunden.` : "Keine Arbeiten vorhanden."}
-                                </td>
-                            </tr>
-                        )}
+                        {filteredTheses.length === 0 && <tr><td colSpan="6" className="text-center py-5 text-muted">Keine Ergebnisse.</td></tr>}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            {/* --- EXPORT MODAL (ANGEPASST) --- */}
+            {showExportModal && (
+                <>
+                    <div className="modal-backdrop fade show" style={{zIndex: 1050}}></div>
+                    <div className="modal fade show d-block" tabIndex="-1" style={{zIndex: 1055}}>
+                        <div className="modal-dialog modal-dialog-centered">
+                            <div className="modal-content custom-card p-0" style={{border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.3)'}}>
+                                <div className="modal-header border-bottom px-4 py-3">
+                                    <h5 className="modal-title fw-bold">Daten Exportieren</h5>
+                                    <button type="button" className="btn-close" onClick={() => setShowExportModal(false)}></button>
+                                </div>
+                                <div className="modal-body px-4 py-4">
+
+                                    {/* 1. Checkboxen statt Select */}
+                                    <div className="mb-4">
+                                        <label className="form-label fw-bold mb-2">Was möchten Sie exportieren?</label>
+                                        <div className="d-flex flex-column gap-2">
+                                            <div className="form-check p-2 rounded border bg-light">
+                                                <input className="form-check-input ms-1 me-2" type="checkbox" id="chk-theses"
+                                                       checked={exportSelection.theses} onChange={() => handleSelectionChange('theses')} />
+                                                <label className="form-check-label fw-bold" htmlFor="chk-theses" style={{cursor:'pointer'}}>
+                                                    Liste der Arbeiten (Theses)
+                                                </label>
+                                            </div>
+
+                                            <div className="form-check p-2 rounded border" style={{backgroundColor: 'var(--bg-app)'}}>
+                                                <input className="form-check-input ms-1 me-2" type="checkbox" id="chk-students"
+                                                       checked={exportSelection.students} onChange={() => handleSelectionChange('students')} />
+                                                <label className="form-check-label" htmlFor="chk-students" style={{cursor:'pointer'}}>
+                                                    Liste aller Studierenden
+                                                </label>
+                                            </div>
+
+                                            <div className="form-check p-2 rounded border" style={{backgroundColor: 'var(--bg-app)'}}>
+                                                <input className="form-check-input ms-1 me-2" type="checkbox" id="chk-betreuer"
+                                                       checked={exportSelection.betreuer} onChange={() => handleSelectionChange('betreuer')} />
+                                                <label className="form-check-label" htmlFor="chk-betreuer" style={{cursor:'pointer'}}>
+                                                    Liste aller Referenten
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 2. Filter (Nur wenn Theses ausgewählt sind) */}
+                                    {exportSelection.theses && (
+                                        <div className="mb-3 ps-3 border-start border-3 border-primary">
+                                            <label className="form-label d-block fw-bold text-primary">Status der Arbeiten filtern:</label>
+                                            <div className="d-flex flex-wrap gap-2">
+                                                <button className="btn btn-sm btn-outline-secondary mb-2" onClick={() => setSelectedStatuses(allStatuses)}>Alle wählen</button>
+                                                <button className="btn btn-sm btn-outline-secondary mb-2" onClick={() => setSelectedStatuses([])}>Keine</button>
+                                            </div>
+
+                                            <div className="card p-3" style={{maxHeight: '150px', overflowY: 'auto', backgroundColor: 'var(--input-bg)'}}>
+                                                {allStatuses.map(status => (
+                                                    <div className="form-check" key={status}>
+                                                        <input
+                                                            className="form-check-input"
+                                                            type="checkbox"
+                                                            id={`chk-status-${status}`}
+                                                            checked={selectedStatuses.includes(status)}
+                                                            onChange={() => handleStatusCheckboxChange(status)}
+                                                        />
+                                                        <label className="form-check-label" htmlFor={`chk-status-${status}`}>
+                                                            {status}
+                                                        </label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <small className="text-muted mt-1 d-block">
+                                                {selectedStatuses.length} Status ausgewählt
+                                            </small>
+                                        </div>
+                                    )}
+
+                                </div>
+                                <div className="modal-footer border-top px-4 py-3 bg-light" style={{borderRadius: '0 0 12px 12px'}}>
+                                    <button type="button" className="btn btn-secondary-custom me-2" onClick={() => setShowExportModal(false)}>
+                                        Abbrechen
+                                    </button>
+                                    <button type="button" className="btn btn-primary-custom" onClick={handleConfirmExport}>
+                                        Herunterladen
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
     );
 };

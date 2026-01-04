@@ -57,7 +57,7 @@ const DashboardHome = () => {
     }, []);
 
     const handleTileClick = (filterStatus) => {
-        navigate(`/?status=${filterStatus}`);
+        navigate(`/theses?status=${filterStatus}`);
     };
 
     // Wir behalten die schönen neuen Farben passend zu den Kacheln
