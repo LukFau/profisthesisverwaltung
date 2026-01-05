@@ -45,6 +45,7 @@ const ThesisForm = () => {
     useEffect(() => {
         const loadData = async () => {
             try {
+                // Stammdaten laden
                 const [studRes, sgRes, poRes, semRes, betrRes] = await Promise.all([
                     api.get('/students'),
                     api.get('/masterdata/studiengaenge'),
@@ -59,29 +60,40 @@ const ThesisForm = () => {
                 setSemester(semRes.data);
                 setBetreuer(betrRes.data);
 
+                // Wenn Edit-Modus: Thesis laden
                 if (isEditMode) {
                     const thesisRes = await api.get(`/theses/${id}`);
-                    const t = thesisRes.data;
+                    const t = thesisRes.data; // Das ist jetzt das flache DTO
+                    console.log("Geladene Thesis (DTO):", t);
 
                     setFormData({
-                        titel: t.titel,
-                        typ: t.typ,
-                        status: t.status,
-                        studierendenId: t.studierende ? t.studierende.id : '',
-                        studiengangId: t.studiengang ? t.studiengang.id : '',
-                        pruefungsordnungId: t.pruefungsordnung ? t.pruefungsordnung.id : '',
-                        semesterId: t.semester ? t.semester.id : '',
-                        erstprueferId: getBetreuerIdByRole(t.noten, "Erstprüfer"),
-                        zweitprueferId: getBetreuerIdByRole(t.noten, "Zweitprüfer"),
-                        anfangsdatum: t.zeitdaten?.anfangsdatum || '',
-                        abgabedatum: t.zeitdaten?.abgabedatum || '',
-                        kolloquiumsdatum: t.zeitdaten?.kolloquiumsdatum || '',
-                        noteArbeit: getNoteByRole(t.noten, "Erstprüfer", "arbeit"),
-                        noteKolloquium: getNoteByRole(t.noten, "Erstprüfer", "kolloquium")
+                        titel: t.titel || '',
+                        typ: t.typ || 'Bachelorarbeit',
+                        status: t.status || 'in Planung',
+
+                        // --- HIER WAR DER FEHLER: Wir nehmen jetzt die flachen IDs vom DTO ---
+                        studierendenId: t.studierendenId || '',
+                        studiengangId: t.studiengangId || '',
+                        pruefungsordnungId: t.poId || '', // Achtung: im DTO heißt es poId
+                        semesterId: t.semesterId || '',
+
+                        // Prüfer IDs kommen jetzt direkt
+                        erstprueferId: t.erstprueferId || '',
+                        zweitprueferId: t.zweitprueferId || '',
+
+                        // Zeitdaten kommen jetzt direkt (nicht mehr in t.zeitdaten)
+                        anfangsdatum: t.anfangsdatum || '',
+                        abgabedatum: t.abgabedatum || '',
+                        kolloquiumsdatum: t.kolloquiumsdatum || '',
+
+                        // Noten kommen direkt
+                        noteArbeit: t.noteArbeit || '',
+                        noteKolloquium: t.noteKolloquium || ''
                     });
 
-                    if (t.studierende) {
-                        setStudentSearch(`${t.studierende.vorname} ${t.studierende.nachname} (${t.studierende.matrikelnummer})`);
+                    // Suchfeld füllen
+                    if (t.studentName) {
+                        setStudentSearch(`${t.studentName} (${t.matrikelnummer})`);
                     }
                 }
                 setLoading(false);

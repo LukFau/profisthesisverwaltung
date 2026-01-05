@@ -7,7 +7,7 @@ const StudentList = () => {
     const [students, setStudents] = useState([]);
 
     useEffect(() => {
-        api.get('/masterdata/students').then(res => setStudents(res.data));
+        api.get('/students').then(res => setStudents(res.data));
     }, []);
 
     return (

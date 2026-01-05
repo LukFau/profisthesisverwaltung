@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import de.profis.model.Notenbestandteil; // Import nötig
 import de.profis.repository.NotenbestandteilRepository; // Import nötig
 import de.profis.repository.BetreuerRepository; // Import nötig
+import de.profis.model.Zeitdaten;
 
 @RestController
 @RequestMapping("/api/theses")
@@ -66,6 +67,16 @@ public class ThesisController {
         entity.setStatus(dto.getStatus());
 
         // Verknüpfungen anhand der IDs aus der DB laden und setzen
+        checkingMethode(dto, entity);
+
+        // Speichern in der DB
+        WissenschaftlicheArbeit saved = arbeitRepository.save(entity);
+
+        // Das gespeicherte Objekt als DTO zurückgeben
+        return convertToDto(saved);
+    }
+
+    private void checkingMethode(@RequestBody ThesisCreateDto dto, WissenschaftlicheArbeit entity) {
         if (dto.getStudierendenId() != null) {
             entity.setStudierende(studRepo.findById(dto.getStudierendenId()).orElse(null));
         }
@@ -81,12 +92,6 @@ public class ThesisController {
         if (dto.getSemesterId() != null) {
             entity.setSemester(semRepo.findById(dto.getSemesterId()).orElse(null));
         }
-
-        // Speichern in der DB
-        WissenschaftlicheArbeit saved = arbeitRepository.save(entity);
-
-        // Das gespeicherte Objekt als DTO zurückgeben
-        return convertToDto(saved);
     }
 
     // --- Hilfsmethode: Entity -> DTO Konvertierung ---
@@ -97,37 +102,57 @@ public class ThesisController {
         dto.setTyp(entity.getTyp());
         dto.setStatus(entity.getStatus());
 
-        // IDs setzen
+        // Verknüpfungen flachklopfen
         if(entity.getStudierende() != null) {
             dto.setStudentName(entity.getStudierende().getVorname() + " " + entity.getStudierende().getNachname());
             dto.setMatrikelnummer(entity.getStudierende().getMatrikelnummer());
-            dto.setStudierendenId(entity.getStudierende().getId()); // NEU
+            dto.setStudierendenId(entity.getStudierende().getId());
         }
         if(entity.getStudiengang() != null) {
             dto.setStudiengang(entity.getStudiengang().getBezeichnung());
-            dto.setStudiengangId(entity.getStudiengang().getId()); // NEU
+            dto.setStudiengangId(entity.getStudiengang().getId());
         }
         if(entity.getSemester() != null) {
             dto.setSemester(entity.getSemester().getBezeichnung());
-            dto.setSemesterId(entity.getSemester().getId()); // NEU
+            dto.setSemesterId(entity.getSemester().getId());
         }
-        if(entity.getPruefungsordnung() != null) dto.setPoId(entity.getPruefungsordnung().getId()); // NEU
+        if(entity.getPruefungsordnung() != null) {
+            dto.setPoId(entity.getPruefungsordnung().getId());
+        }
 
-        if (entity.getZeitdaten() != null) dto.setAbgabedatum(entity.getZeitdaten().getAbgabedatum());
+        // --- ZEITDATEN (Update) ---
+        if (entity.getZeitdaten() != null) {
+            dto.setAnfangsdatum(entity.getZeitdaten().getAnfangsdatum());
+            dto.setAbgabedatum(entity.getZeitdaten().getAbgabedatum());
+            dto.setKolloquiumsdatum(entity.getZeitdaten().getKolloquiumsdatum());
+        }
 
-        // Noten & Prüfer
+        // --- NOTEN & PRÜFER (Update) ---
         if (entity.getNoten() != null) {
+            // 1. Erstprüfer
             entity.getNoten().stream()
                     .filter(n -> "Erstprüfer".equalsIgnoreCase(n.getRolle()))
                     .findFirst()
                     .ifPresent(n -> {
                         if(n.getBetreuer() != null) {
-                            String t = n.getBetreuer().getTitel() != null ? n.getBetreuer().getTitel() + " " : "";
-                            dto.setErstpruefer(t + n.getBetreuer().getVorname() + " " + n.getBetreuer().getNachname());
-                            dto.setErstprueferId(n.getBetreuer().getId()); // NEU
+                            String titel = n.getBetreuer().getTitel() != null ? n.getBetreuer().getTitel() + " " : "";
+                            dto.setErstpruefer(titel + n.getBetreuer().getVorname() + " " + n.getBetreuer().getNachname());
+                            dto.setErstprueferId(n.getBetreuer().getId());
                         }
-                        dto.setNoteArbeit(n.getNoteArbeit()); // NEU
-                        dto.setNoteKolloquium(n.getNoteKolloquium()); // NEU
+                        dto.setNoteArbeit(n.getNoteArbeit());
+                        dto.setNoteKolloquium(n.getNoteKolloquium());
+                    });
+
+            // 2. Zweitprüfer (Neu)
+            entity.getNoten().stream()
+                    .filter(n -> "Zweitprüfer".equalsIgnoreCase(n.getRolle()))
+                    .findFirst()
+                    .ifPresent(n -> {
+                        if(n.getBetreuer() != null) {
+                            String titel = n.getBetreuer().getTitel() != null ? n.getBetreuer().getTitel() + " " : "";
+                            dto.setZweitpruefer(titel + n.getBetreuer().getVorname() + " " + n.getBetreuer().getNachname());
+                            dto.setZweitprueferId(n.getBetreuer().getId());
+                        }
                     });
         }
         return dto;
@@ -162,36 +187,64 @@ public class ThesisController {
         WissenschaftlicheArbeit entity = arbeitRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Arbeit nicht gefunden"));
 
-        // Basis-Daten updaten
+        // 1. Basis-Daten updaten
         entity.setTitel(dto.getTitel());
         entity.setTyp(dto.getTyp());
         entity.setStatus(dto.getStatus());
 
-        // Relationen updaten (nur wenn IDs gesendet wurden)
-        if (dto.getStudierendenId() != null) entity.setStudierende(studRepo.findById(dto.getStudierendenId()).orElse(null));
-        if (dto.getStudiengangId() != null) entity.setStudiengang(sgRepo.findById(dto.getStudiengangId()).orElse(null));
-        if (dto.getPoId() != null) entity.setPruefungsordnung(poRepo.findById(dto.getPoId()).orElse(null));
-        if (dto.getSemesterId() != null) entity.setSemester(semRepo.findById(dto.getSemesterId()).orElse(null));
+        // 2. Relationen updaten (nur wenn IDs gesendet wurden)
+        checkingMethode(dto, entity);
 
-        // --- NOTEN UPDATEN ---
-        if (dto.getNoteArbeit() != null || dto.getNoteKolloquium() != null) {
-            // Suche existierenden Noteneintrag für Erstprüfer
+        // 3. Zeitdaten updaten (NEU HINZUFÜGEN, falls noch nicht passiert)
+        if (dto.getAnfangsdatum() != null || dto.getAbgabedatum() != null || dto.getKolloquiumsdatum() != null) {
+            Zeitdaten zeit = entity.getZeitdaten();
+            if (zeit == null) {
+                zeit = new Zeitdaten();
+                zeit.setArbeit(entity); // Verknüpfung setzen
+            }
+            if (dto.getAnfangsdatum() != null) zeit.setAnfangsdatum(dto.getAnfangsdatum());
+            if (dto.getAbgabedatum() != null) zeit.setAbgabedatum(dto.getAbgabedatum());
+            if (dto.getKolloquiumsdatum() != null) zeit.setKolloquiumsdatum(dto.getKolloquiumsdatum());
+            // Zeitdaten müssen evtl. explizit gespeichert werden, wenn Cascade nicht reicht,
+            // aber meist reicht arbeitRepository.save(entity) am Ende.
+            entity.setZeitdaten(zeit);
+        }
+
+        // 4. --- NOTEN & PRÜFER UPDATEN ---
+
+        // A) ERSTPRÜFER (und Noten)
+        // Wir erstellen/holen den Eintrag immer, wenn Noten ODER ein Erstprüfer da ist
+        if (dto.getNoteArbeit() != null || dto.getNoteKolloquium() != null || dto.getErstprueferId() != null) {
             Notenbestandteil note = entity.getNoten().stream()
                     .filter(n -> "Erstprüfer".equalsIgnoreCase(n.getRolle()))
                     .findFirst()
-                    .orElse(new Notenbestandteil()); // Oder neu erstellen
+                    .orElse(new Notenbestandteil());
 
             note.setArbeit(entity);
             note.setRolle("Erstprüfer");
             if (dto.getNoteArbeit() != null) note.setNoteArbeit(dto.getNoteArbeit());
             if (dto.getNoteKolloquium() != null) note.setNoteKolloquium(dto.getNoteKolloquium());
 
-            // Falls Betreuer im Formular gewählt wurde
-            if (dto.getBetreuerId() != null) {
-                note.setBetreuer(betreuerRepo.findById(dto.getBetreuerId()).orElse(null));
+            // WICHTIG: Achte darauf, dass dein DTO Feld "erstprueferId" heißt (passend zum Frontend)
+            if (dto.getErstprueferId() != null) {
+                note.setBetreuer(betreuerRepo.findById(dto.getErstprueferId()).orElse(null));
             }
-
             notenRepo.save(note);
+        }
+
+        // B) ZWEITPRÜFER (Das hier hat gefehlt!)
+        if (dto.getZweitprueferId() != null) {
+            Notenbestandteil zP = entity.getNoten().stream()
+                    .filter(n -> "Zweitprüfer".equalsIgnoreCase(n.getRolle()))
+                    .findFirst()
+                    .orElse(new Notenbestandteil());
+
+            zP.setArbeit(entity);
+            zP.setRolle("Zweitprüfer");
+            zP.setBetreuer(betreuerRepo.findById(dto.getZweitprueferId()).orElse(null));
+
+            // Zweitprüfer vergeben meist keine separate Note in diesem System, daher nur Betreuer setzen
+            notenRepo.save(zP);
         }
 
         WissenschaftlicheArbeit saved = arbeitRepository.save(entity);

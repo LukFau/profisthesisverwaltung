@@ -7,7 +7,7 @@ const BetreuerList = () => {
     const [betreuer, setBetreuer] = useState([]);
 
     useEffect(() => {
-        api.get('/masterdata/betreuer').then(res => setBetreuer(res.data));
+        api.get('/betreuer').then(res => setBetreuer(res.data));
     }, []);
 
     return (

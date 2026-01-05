@@ -7,27 +7,34 @@ import java.time.LocalDate;
 public class ThesisResponseDto {
     private Long id;
     private String titel;
-    private String typ;     // Bachelor/Master
-    private String status;  // abgeschlossen/in Bearbeitung
+    private String typ;
+    private String status;
 
-    // Wir lösen die Objekte auf, um im Frontend direkt Namen anzeigen zu können
     private String studentName;
     private String matrikelnummer;
     private String studiengang;
-    private String semester; // z.B. "2021-1"
+    private String semester;
     private String erstpruefer;
 
-    // Zeitdaten (falls vorhanden)
-    private LocalDate abgabedatum;
+    // --- NEU: Zweitprüfer Name für Anzeige ---
+    private String zweitpruefer;
 
-    // IDs für das Frontend-Formular (zum Pre-Filling der Dropdowns)
+    // --- NEU: Alle Zeitdaten ---
+    private LocalDate anfangsdatum;
+    private LocalDate abgabedatum;
+    private LocalDate kolloquiumsdatum;
+
+    // IDs für das Frontend-Formular
     private Long studierendenId;
     private Long studiengangId;
     private Long poId;
     private Long semesterId;
 
-    // Noten
+    // Noten & Prüfer IDs
     private Double noteArbeit;
     private Double noteKolloquium;
-    private Long erstprueferId; // ID für das Dropdown
+    private Long erstprueferId;
+
+    // --- NEU: Zweitprüfer ID ---
+    private Long zweitprueferId;
 }

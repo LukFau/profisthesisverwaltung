@@ -2,6 +2,8 @@ package de.profis.dto;
 
 import lombok.Data;
 
+import java.time.LocalDate;
+
 @Data
 public class ThesisCreateDto {
     private String titel;
@@ -18,4 +20,9 @@ public class ThesisCreateDto {
     private Double noteKolloquium;
     // Optional: ID des Betreuers, der die Note gibt (Standardmäßig nehmen wir Erstprüfer an)
     private Long betreuerId;
+    private Long erstprueferId;
+    private Long zweitprueferId;
+    private LocalDate anfangsdatum;
+    private LocalDate abgabedatum;
+    private LocalDate kolloquiumsdatum;
 }
