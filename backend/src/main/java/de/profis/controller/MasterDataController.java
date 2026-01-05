@@ -1,80 +1,74 @@
 package de.profis.controller;
 
-import de.profis.model.Pruefungsordnung;
-import de.profis.model.Semester;
-import de.profis.model.Studiengang;
-import de.profis.model.Studierende;
-import de.profis.repository.PruefungsordnungRepository;
-import de.profis.repository.SemesterRepository;
-import de.profis.repository.StudiengangRepository;
-import de.profis.repository.StudierendeRepository;
-import org.springframework.web.bind.annotation.*;
-import de.profis.repository.BetreuerRepository; // Import nicht vergessen!
-import de.profis.model.Betreuer;
-import de.profis.dto.BetreuerCreateDto; // NEU
-import de.profis.dto.StudentCreateDto;   // NEU
+import de.profis.model.*;
+import de.profis.repository.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/masterdata")
+@RequestMapping("/api") // Basis-Pfad für alle Aufrufe
+@CrossOrigin(origins = "http://localhost:3000")
 public class MasterDataController {
 
-    private final StudierendeRepository studRepo;
-    private final StudiengangRepository sgRepo;
+    private final StudiengangRepository studiengangRepo;
     private final PruefungsordnungRepository poRepo;
-    private final SemesterRepository semRepo;
+    private final SemesterRepository semesterRepo;
+    private final FachbereichRepository fbRepo;
 
+    // --- NEU: Repositories für Studenten und Betreuer hinzufügen ---
+    private final StudierendeRepository studentRepo;
     private final BetreuerRepository betreuerRepo;
 
-    public MasterDataController(
-            StudierendeRepository studRepo,
-            StudiengangRepository sgRepo,
-            PruefungsordnungRepository poRepo,
-            SemesterRepository semRepo,
-            BetreuerRepository betreuerRepo
-    ) {
-        this.studRepo = studRepo;
-        this.sgRepo = sgRepo;
+    public MasterDataController(StudiengangRepository studiengangRepo,
+                                PruefungsordnungRepository poRepo,
+                                SemesterRepository semesterRepo,
+                                FachbereichRepository fbRepo,
+                                StudierendeRepository studentRepo,
+                                BetreuerRepository betreuerRepo) {
+        this.studiengangRepo = studiengangRepo;
         this.poRepo = poRepo;
-        this.semRepo = semRepo;
+        this.semesterRepo = semesterRepo;
+        this.fbRepo = fbRepo;
+        this.studentRepo = studentRepo;
         this.betreuerRepo = betreuerRepo;
     }
 
-    @GetMapping("/betreuer")
-    public List<Betreuer> getBetreuer() {
-        return betreuerRepo.findAll();
+    // --- Bestehende Endpunkte (achte auf den Pfad /masterdata/...) ---
+
+    @GetMapping("/masterdata/studiengaenge")
+    public List<Studiengang> getAllStudiengaenge() {
+        return studiengangRepo.findAll();
     }
+
+    @GetMapping("/masterdata/pos")
+    public List<Pruefungsordnung> getAllPOs() {
+        return poRepo.findAll();
+    }
+
+    @GetMapping("/masterdata/semester")
+    public List<Semester> getAllSemester() {
+        return semesterRepo.findAll();
+    }
+
+    @GetMapping("/masterdata/fachbereiche")
+    public List<Fachbereich> getAllFachbereiche() {
+        return fbRepo.findAll();
+    }
+
+    // --- NEU: Endpunkte für Studenten und Betreuer (direkt unter /api/...) ---
+    // Diese werden von ThesisForm.js aufgerufen: api.get('/students')
 
     @GetMapping("/students")
-    public List<Studierende> getStudents() { return studRepo.findAll(); }
-
-    @GetMapping("/studiengaenge")
-    public List<Studiengang> getStudiengaenge() { return sgRepo.findAll(); }
-
-    @GetMapping("/pos")
-    public List<Pruefungsordnung> getPos() { return poRepo.findAll(); }
-
-    @GetMapping("/semesters")
-    public List<Semester> getSemesters() { return semRepo.findAll(); }
-
-    @PostMapping("/students")
-    public Studierende createStudent(@RequestBody StudentCreateDto dto) {
-        Studierende s = new Studierende();
-        s.setVorname(dto.getVorname());
-        s.setNachname(dto.getNachname());
-        s.setMatrikelnummer(dto.getMatrikelnummer());
-        s.setEmail(dto.getEmail());
-        return studRepo.save(s);
+    public List<Studierende> getAllStudents() {
+        return studentRepo.findAll();
     }
 
-    @PostMapping("/betreuer")
-    public Betreuer createBetreuer(@RequestBody BetreuerCreateDto dto) {
-        Betreuer b = new Betreuer();
-        b.setVorname(dto.getVorname());
-        b.setNachname(dto.getNachname());
-        b.setTitel(dto.getTitel());
-        b.setRolle(dto.getRolle());
-        return betreuerRepo.save(b);
+    @GetMapping("/betreuer")
+    public List<Betreuer> getAllBetreuer() {
+        return betreuerRepo.findAll();
     }
 }

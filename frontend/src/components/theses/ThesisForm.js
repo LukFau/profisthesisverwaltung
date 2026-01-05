@@ -1,195 +1,412 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom'; // useParams für ID
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../api/axiosConfig';
 import '../../App.css';
 
 const ThesisForm = () => {
+    const { id } = useParams();
     const navigate = useNavigate();
-    const { id } = useParams(); // ID aus der URL lesen
-    const isEditMode = !!id; // true wenn ID existiert
+    const isEditMode = !!id;
 
+    // --- FORM DATA ---
     const [formData, setFormData] = useState({
         titel: '',
-        typ: 'Bachelorarbeit',
-        status: 'in Bearbeitung',
+        typ: 'Bachelorarbeit', // Standard
+        status: 'in Planung',
         studierendenId: '',
         studiengangId: '',
-        poId: '',
+        pruefungsordnungId: '',
         semesterId: '',
-        // Neue Felder für Edit Mode
-        betreuerId: '',
+        erstprueferId: '',
+        zweitprueferId: '',
+        anfangsdatum: '',
+        abgabedatum: '',
+        kolloquiumsdatum: '',
         noteArbeit: '',
         noteKolloquium: ''
     });
 
-    const [masterData, setMasterData] = useState({
-        students: [], semesters: [], studiengaenge: [], pos: [], betreuer: []
-    });
+    // --- STAMMDATEN ---
+    const [students, setStudents] = useState([]);
+    const [studiengaenge, setStudiengaenge] = useState([]);
+    const [pos, setPos] = useState([]);
+    const [semester, setSemester] = useState([]);
+    const [betreuer, setBetreuer] = useState([]);
 
-    // 1. Stammdaten laden
+    // --- SUCHFELD STATES ---
+    const [studentSearch, setStudentSearch] = useState("");
+    const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+    const searchWrapperRef = useRef(null);
+
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    // 1. Daten laden
     useEffect(() => {
-        const loadMasterData = async () => {
+        const loadData = async () => {
             try {
-                const [stud, sem, sg, po, bet] = await Promise.all([
-                    api.get('/masterdata/students'),
-                    api.get('/masterdata/semesters'),
+                const [studRes, sgRes, poRes, semRes, betrRes] = await Promise.all([
+                    api.get('/students'),
                     api.get('/masterdata/studiengaenge'),
                     api.get('/masterdata/pos'),
-                    api.get('/masterdata/betreuer')
+                    api.get('/masterdata/semester'),
+                    api.get('/betreuer')
                 ]);
-                setMasterData({
-                    students: stud.data,
-                    semesters: sem.data,
-                    studiengaenge: sg.data,
-                    pos: po.data,
-                    betreuer: bet.data
-                });
-            } catch (err) { console.error(err); }
-        };
-        loadMasterData();
-    }, []);
 
-    // 2. Wenn Edit Mode: Vorhandene Daten laden
-    useEffect(() => {
-        if (isEditMode) {
-            const loadThesis = async () => {
-                try {
-                    const res = await api.get(`/theses/${id}`);
-                    const data = res.data;
+                setStudents(studRes.data);
+                setStudiengaenge(sgRes.data);
+                setPos(poRes.data);
+                setSemester(semRes.data);
+                setBetreuer(betrRes.data);
+
+                if (isEditMode) {
+                    const thesisRes = await api.get(`/theses/${id}`);
+                    const t = thesisRes.data;
+
                     setFormData({
-                        titel: data.titel,
-                        typ: data.typ,
-                        status: data.status,
-                        studierendenId: data.studierendenId || '',
-                        studiengangId: data.studiengangId || '',
-                        poId: data.poId || '',
-                        semesterId: data.semesterId || '',
-                        betreuerId: data.erstprueferId || '',
-                        noteArbeit: data.noteArbeit || '',
-                        noteKolloquium: data.noteKolloquium || ''
+                        titel: t.titel,
+                        typ: t.typ,
+                        status: t.status,
+                        studierendenId: t.studierende ? t.studierende.id : '',
+                        studiengangId: t.studiengang ? t.studiengang.id : '',
+                        pruefungsordnungId: t.pruefungsordnung ? t.pruefungsordnung.id : '',
+                        semesterId: t.semester ? t.semester.id : '',
+                        erstprueferId: getBetreuerIdByRole(t.noten, "Erstprüfer"),
+                        zweitprueferId: getBetreuerIdByRole(t.noten, "Zweitprüfer"),
+                        anfangsdatum: t.zeitdaten?.anfangsdatum || '',
+                        abgabedatum: t.zeitdaten?.abgabedatum || '',
+                        kolloquiumsdatum: t.zeitdaten?.kolloquiumsdatum || '',
+                        noteArbeit: getNoteByRole(t.noten, "Erstprüfer", "arbeit"),
+                        noteKolloquium: getNoteByRole(t.noten, "Erstprüfer", "kolloquium")
                     });
-                } catch (err) {
-                    alert("Fehler beim Laden der Arbeit");
+
+                    if (t.studierende) {
+                        setStudentSearch(`${t.studierende.vorname} ${t.studierende.nachname} (${t.studierende.matrikelnummer})`);
+                    }
                 }
-            };
-            loadThesis();
-        }
+                setLoading(false);
+            } catch (err) {
+                console.error(err);
+                setError("Fehler beim Laden der Daten.");
+                setLoading(false);
+            }
+        };
+        loadData();
+
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [id, isEditMode]);
 
-    const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        try {
-            if (isEditMode) {
-                await api.put(`/theses/${id}`, formData); // UPDATE
-            } else {
-                await api.post('/theses', formData); // CREATE
-            }
-            navigate('/');
-        } catch (err) {
-            alert('Fehler: ' + err.message);
+    // Helper
+    const handleClickOutside = (event) => {
+        if (searchWrapperRef.current && !searchWrapperRef.current.contains(event.target)) {
+            setShowStudentDropdown(false);
         }
     };
 
+    const getBetreuerIdByRole = (notenList, role) => {
+        if (!notenList) return '';
+        const entry = notenList.find(n => n.rolle === role);
+        return entry && entry.betreuer ? entry.betreuer.id : '';
+    };
+    const getNoteByRole = (notenList, role, type) => {
+        if (!notenList) return '';
+        const entry = notenList.find(n => n.rolle === role);
+        if (!entry) return '';
+        return type === "arbeit" ? (entry.noteArbeit || '') : (entry.noteKolloquium || '');
+    };
+
+    // --- LOGIK: STUDIENGANG FILTERN ---
+    // Wir berechnen die Liste der Studiengänge dynamisch basierend auf dem gewählten Typ
+    const filteredStudiengaenge = studiengaenge.filter(sg => {
+        if (formData.typ === 'Bachelorarbeit') {
+            return sg.abschluss && sg.abschluss.startsWith('B'); // Zeigt nur B.Sc., B.Eng. etc.
+        }
+        if (formData.typ === 'Masterarbeit') {
+            return sg.abschluss && sg.abschluss.startsWith('M'); // Zeigt nur M.Sc., M.Eng. etc.
+        }
+        return true; // Bei Projektarbeit etc. alles zeigen
+    });
+
+    // --- LOGIK: CHANGE HANDLER MIT AUTOMATIK ---
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        setFormData(prev => {
+            const newData = { ...prev, [name]: value };
+
+            // A) Wenn sich der TYP ändert (Bachelor <-> Master), resetten wir Studiengang & PO
+            if (name === 'typ') {
+                newData.studiengangId = '';
+                newData.pruefungsordnungId = '';
+            }
+
+            // B) Wenn sich der STUDIENGANG ändert -> Automatisch passende PO suchen
+            if (name === 'studiengangId') {
+                newData.pruefungsordnungId = ''; // Erstmal leeren
+
+                if (value) {
+                    // 1. Alle POs finden, die zu diesem Studiengang gehören
+                    // (Wir nehmen an, das Backend liefert POs mit geschachteltem 'studiengang' Objekt oder ID)
+                    const relevantPos = pos.filter(p =>
+                        p.studiengang && p.studiengang.id === parseInt(value)
+                    );
+
+                    // 2. Die neueste PO automatisch auswählen
+                    if (relevantPos.length > 0) {
+                        // Sortieren nach 'gueltigAb' Datum (neueste zuerst)
+                        relevantPos.sort((a, b) => new Date(b.gueltigAb) - new Date(a.gueltigAb));
+
+                        // Die allerneueste als Standard setzen
+                        newData.pruefungsordnungId = relevantPos[0].id;
+                    }
+                }
+            }
+
+            return newData;
+        });
+    };
+
+    // --- HANDLER FÜR STUDENTEN SUCHE ---
+    const handleStudentSearchChange = (e) => {
+        setStudentSearch(e.target.value);
+        setShowStudentDropdown(true);
+    };
+
+    const selectStudent = (student) => {
+        setFormData(prev => ({ ...prev, studierendenId: student.id }));
+        setStudentSearch(`${student.vorname} ${student.nachname} (${student.matrikelnummer})`);
+        setShowStudentDropdown(false);
+    };
+
+    const filteredStudents = students.filter(s => {
+        const searchLower = studentSearch.toLowerCase();
+        return (
+            s.nachname.toLowerCase().includes(searchLower) ||
+            s.vorname.toLowerCase().includes(searchLower) ||
+            s.matrikelnummer.includes(searchLower)
+        );
+    });
+
+    // --- SUBMIT ---
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        const payload = {
+            titel: formData.titel,
+            typ: formData.typ,
+            status: formData.status,
+            studierendenId: formData.studierendenId || null,
+            studiengangId: formData.studiengangId || null,
+            pruefungsordnungId: formData.pruefungsordnungId || null,
+            semesterId: formData.semesterId || null,
+            erstprueferId: formData.erstprueferId || null,
+            zweitprueferId: formData.zweitprueferId || null,
+            anfangsdatum: formData.anfangsdatum || null,
+            abgabedatum: formData.abgabedatum || null,
+            kolloquiumsdatum: formData.kolloquiumsdatum || null,
+            noteArbeit: formData.noteArbeit || null,
+            noteKolloquium: formData.noteKolloquium || null
+        };
+
+        try {
+            if (isEditMode) {
+                await api.put(`/theses/${id}`, payload);
+            } else {
+                await api.post('/theses', payload);
+            }
+            navigate('/theses');
+        } catch (err) {
+            console.error(err);
+            setError("Speichern fehlgeschlagen.");
+        }
+    };
+
+    if (loading) return <div className="text-center mt-5">Laden...</div>;
+
     return (
-        <div className="container form-container">
-            <h2 className="mt-4">{isEditMode ? 'Arbeit bearbeiten' : 'Neue Arbeit anlegen'}</h2>
-            <div className="custom-card">
-                <form onSubmit={handleSubmit}>
+        <div className="container form-container my-5">
+            <h3 className="mb-4 fw-bold">{isEditMode ? 'Arbeit bearbeiten' : 'Neue Arbeit anlegen'}</h3>
 
-                    {/* Titel */}
-                    <div className="mb-4">
+            {error && <div className="alert alert-danger">{error}</div>}
+
+            <form onSubmit={handleSubmit} className="custom-card">
+
+                {/* 1. ZEILE: Titel & Typ */}
+                <div className="row mb-3">
+                    <div className="col-md-8">
                         <label className="form-label">Titel der Arbeit</label>
-                        <input type="text" className="form-control" name="titel" required value={formData.titel} onChange={handleChange} />
+                        <input
+                            type="text"
+                            className="form-control"
+                            name="titel"
+                            value={formData.titel}
+                            onChange={handleChange}
+                            required
+                            placeholder="z.B. Entwicklung einer Web-App..."
+                        />
+                    </div>
+                    <div className="col-md-4">
+                        <label className="form-label">Art der Arbeit</label>
+                        <select className="form-select" name="typ" value={formData.typ} onChange={handleChange}>
+                            <option value="Bachelorarbeit">Bachelorarbeit</option>
+                            <option value="Masterarbeit">Masterarbeit</option>
+                            <option value="Projektarbeit">Projektarbeit</option>
+                        </select>
+                    </div>
+                </div>
+
+                {/* 2. ZEILE: Student & Status */}
+                <div className="row mb-3">
+                    <div className="col-md-6" ref={searchWrapperRef} style={{position: 'relative'}}>
+                        <label className="form-label">Studierende/r</label>
+                        <div className="input-group">
+                            <span className="input-group-text bg-white border-end-0">🔍</span>
+                            <input
+                                type="text"
+                                className="form-control border-start-0 ps-0"
+                                placeholder="Name oder Matrikelnr. tippen..."
+                                value={studentSearch}
+                                onChange={handleStudentSearchChange}
+                                onFocus={() => setShowStudentDropdown(true)}
+                            />
+                        </div>
+                        {showStudentDropdown && (
+                            <div className="list-group position-absolute w-100 shadow-sm" style={{zIndex: 1000, maxHeight: '200px', overflowY: 'auto'}}>
+                                {filteredStudents.length > 0 ? (
+                                    filteredStudents.map(student => (
+                                        <button type="button" key={student.id} className="list-group-item list-group-item-action" onClick={() => selectStudent(student)}>
+                                            <strong>{student.nachname}, {student.vorname}</strong><br/>
+                                            <small className="text-muted">{student.matrikelnummer}</small>
+                                        </button>
+                                    ))
+                                ) : (
+                                    <div className="list-group-item text-muted">Keine Ergebnisse</div>
+                                )}
+                            </div>
+                        )}
+                        {!formData.studierendenId && studentSearch && <small className="text-danger">Bitte wählen Sie einen Eintrag aus.</small>}
+                    </div>
+                    <div className="col-md-6">
+                        <label className="form-label">Aktueller Status</label>
+                        <select className="form-select" name="status" value={formData.status} onChange={handleChange}>
+                            <option value="in Planung">In Planung</option>
+                            <option value="Angemeldet">Angemeldet</option>
+                            <option value="in Bearbeitung">In Bearbeitung</option>
+                            <option value="Kolloquium planen">Kolloquium planen</option>
+                            <option value="abgeschlossen">Abgeschlossen</option>
+                            <option value="Abbruch">Abbruch</option>
+                        </select>
+                    </div>
+                </div>
+
+                <hr className="my-4 text-muted" />
+
+                {/* 3. ZEILE: Studiengang (Gefiltert) & PO (Auto) */}
+                <div className="row mb-3">
+                    <div className="col-md-4">
+                        <label className="form-label">
+                            Studiengang <small className="text-muted fw-normal">({formData.typ})</small>
+                        </label>
+                        <select
+                            className="form-select"
+                            name="studiengangId"
+                            value={formData.studiengangId}
+                            onChange={handleChange}
+                        >
+                            <option value="">Bitte wählen...</option>
+                            {/* Wir mappen hier über die GEFILTERTE Liste */}
+                            {filteredStudiengaenge.map(sg => (
+                                <option key={sg.id} value={sg.id}>{sg.bezeichnung} ({sg.abschluss})</option>
+                            ))}
+                        </select>
+                        {filteredStudiengaenge.length === 0 && (
+                            <small className="text-warning">Keine passenden Studiengänge gefunden.</small>
+                        )}
                     </div>
 
-                    {/* Typ & Status */}
-                    <div className="row mb-4">
-                        <div className="col-md-6">
-                            <label className="form-label">Typ</label>
-                            <select className="form-select" name="typ" value={formData.typ} onChange={handleChange}>
-                                <option value="Bachelorarbeit">Bachelorarbeit</option>
-                                <option value="Masterarbeit">Masterarbeit</option>
-                            </select>
-                        </div>
-                        <div className="col-md-6">
-                            <label className="form-label">Status</label>
-                            <select className="form-select" name="status" value={formData.status} onChange={handleChange}>
-                                <option value="in Planung">In Planung</option>
-                                <option value="in Bearbeitung">In Bearbeitung</option>
-                                <option value="Kolloquium planen">Kolloquium planen</option>
-                                <option value="abgeschlossen">Abgeschlossen</option>
-                                <option value="Abbruch">Abbruch</option>
-                            </select>
-                        </div>
+                    <div className="col-md-4">
+                        <label className="form-label">Prüfungsordnung</label>
+                        <select className="form-select" name="pruefungsordnungId" value={formData.pruefungsordnungId} onChange={handleChange}>
+                            <option value="">Bitte wählen...</option>
+                            {/* Optional: Hier könnte man auch noch filtern, dass nur POs zum gewählten SG angezeigt werden */}
+                            {pos.map(p => (
+                                <option key={p.id} value={p.id}>
+                                    {p.bezeichnung}
+                                    {/* Falls du im Backend Studiengang-Namen mitlieferst, könnte man den hier anzeigen */}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
-                    {/* Student & Betreuer */}
-                    <div className="row mb-4">
-                        <div className="col-md-6">
-                            <label className="form-label">Student</label>
-                            <select className="form-select" name="studierendenId" required value={formData.studierendenId} onChange={handleChange}>
-                                <option value="">Wählen...</option>
-                                {masterData.students.map(s => <option key={s.id} value={s.id}>{s.vorname} {s.nachname}</option>)}
-                            </select>
-                        </div>
-                        <div className="col-md-6">
-                            <label className="form-label">Erstprüfer</label>
-                            <select className="form-select" name="betreuerId" value={formData.betreuerId} onChange={handleChange}>
-                                <option value="">Wählen...</option>
-                                {masterData.betreuer.map(b => <option key={b.id} value={b.id}>{b.nachname}, {b.vorname}</option>)}
-                            </select>
-                        </div>
+                    <div className="col-md-4">
+                        <label className="form-label">Semester</label>
+                        <select className="form-select" name="semesterId" value={formData.semesterId} onChange={handleChange}>
+                            <option value="">Bitte wählen...</option>
+                            {semester.map(s => (
+                                <option key={s.id} value={s.id}>{s.bezeichnung}</option>
+                            ))}
+                        </select>
                     </div>
+                </div>
 
-                    {/* Akademische Daten */}
-                    <div className="row mb-4">
-                        <div className="col-md-4">
-                            <label className="form-label">Studiengang</label>
-                            <select className="form-select" name="studiengangId" required value={formData.studiengangId} onChange={handleChange}>
-                                <option value="">Wählen...</option>
-                                {masterData.studiengaenge.map(s => <option key={s.id} value={s.id}>{s.bezeichnung}</option>)}
-                            </select>
-                        </div>
-                        <div className="col-md-4">
-                            <label className="form-label">PO</label>
-                            <select className="form-select" name="poId" required value={formData.poId} onChange={handleChange}>
-                                <option value="">Wählen...</option>
-                                {masterData.pos.map(p => <option key={p.id} value={p.id}>{p.bezeichnung}</option>)}
-                            </select>
-                        </div>
-                        <div className="col-md-4">
-                            <label className="form-label">Semester</label>
-                            <select className="form-select" name="semesterId" required value={formData.semesterId} onChange={handleChange}>
-                                <option value="">Wählen...</option>
-                                {masterData.semesters.map(s => <option key={s.id} value={s.id}>{s.bezeichnung}</option>)}
-                            </select>
-                        </div>
+                {/* 4. ZEILE: Referenten */}
+                <div className="row mb-3">
+                    <div className="col-md-6">
+                        <label className="form-label">Erstprüfer (Betreuer)</label>
+                        <select className="form-select" name="erstprueferId" value={formData.erstprueferId} onChange={handleChange}>
+                            <option value="">Keiner zugewiesen</option>
+                            {betreuer.map(b => (
+                                <option key={b.id} value={b.id}>{b.nachname}, {b.vorname} ({b.titel})</option>
+                            ))}
+                        </select>
                     </div>
+                    <div className="col-md-6">
+                        <label className="form-label">Zweitprüfer</label>
+                        <select className="form-select" name="zweitprueferId" value={formData.zweitprueferId} onChange={handleChange}>
+                            <option value="">Keiner zugewiesen</option>
+                            {betreuer.map(b => (
+                                <option key={b.id} value={b.id}>{b.nachname}, {b.vorname} ({b.titel})</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
 
-                    {/* NOTEN (Nur anzeigen, wenn Edit Mode oder explizit gewünscht) */}
-                    <hr className="my-4"/>
-                    <h5 className="mb-3 text-muted">Benotung</h5>
-                    <div className="row mb-4">
-                        <div className="col-md-6">
-                            <label className="form-label">Note Arbeit</label>
-                            <input type="number" step="0.1" className="form-control" name="noteArbeit"
-                                   value={formData.noteArbeit} onChange={handleChange} placeholder="z.B. 1.3" />
-                        </div>
-                        <div className="col-md-6">
-                            <label className="form-label">Note Kolloquium</label>
-                            <input type="number" step="0.1" className="form-control" name="noteKolloquium"
-                                   value={formData.noteKolloquium} onChange={handleChange} placeholder="z.B. 1.0" />
-                        </div>
-                    </div>
+                <hr className="my-4 text-muted" />
 
-                    <div className="d-flex justify-content-end mt-4">
-                        <button type="button" className="btn btn-secondary-custom" onClick={() => navigate('/')}>Abbrechen</button>
-                        <button type="submit" className="btn btn-primary-custom">{isEditMode ? 'Änderungen speichern' : 'Anlegen'}</button>
+                {/* 5. ZEILE: Termine */}
+                <div className="row mb-3">
+                    <div className="col-md-4">
+                        <label className="form-label">Startdatum</label>
+                        <input type="date" className="form-control" name="anfangsdatum" value={formData.anfangsdatum} onChange={handleChange} />
                     </div>
-                </form>
-            </div>
+                    <div className="col-md-4">
+                        <label className="form-label">Abgabedatum</label>
+                        <input type="date" className="form-control" name="abgabedatum" value={formData.abgabedatum} onChange={handleChange} />
+                    </div>
+                    <div className="col-md-4">
+                        <label className="form-label">Kolloquiumsdatum</label>
+                        <input type="date" className="form-control" name="kolloquiumsdatum" value={formData.kolloquiumsdatum} onChange={handleChange} />
+                    </div>
+                </div>
+
+                {/* 6. ZEILE: Noten */}
+                <div className="row mb-4">
+                    <div className="col-md-3">
+                        <label className="form-label">Note (Arbeit)</label>
+                        <input type="number" step="0.1" min="1.0" max="5.0" className="form-control" name="noteArbeit" value={formData.noteArbeit} onChange={handleChange} placeholder="z.B. 1.3" />
+                    </div>
+                    <div className="col-md-3">
+                        <label className="form-label">Note (Kolloquium)</label>
+                        <input type="number" step="0.1" min="1.0" max="5.0" className="form-control" name="noteKolloquium" value={formData.noteKolloquium} onChange={handleChange} placeholder="z.B. 1.0" />
+                    </div>
+                </div>
+
+                <div className="d-flex justify-content-end">
+                    <button type="button" className="btn btn-secondary-custom me-2" onClick={() => navigate('/theses')}>Abbrechen</button>
+                    <button type="submit" className="btn btn-primary-custom">Speichern</button>
+                </div>
+            </form>
         </div>
     );
 };
