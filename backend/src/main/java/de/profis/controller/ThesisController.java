@@ -250,4 +250,12 @@ public class ThesisController {
         WissenschaftlicheArbeit saved = arbeitRepository.save(entity);
         return convertToDto(saved);
     }
+    @DeleteMapping("/{id}")
+    public org.springframework.http.ResponseEntity<Void> deleteThesis(@PathVariable Long id) {
+        if (!arbeitRepository.existsById(id)) {
+            return org.springframework.http.ResponseEntity.notFound().build();
+        }
+        arbeitRepository.deleteById(id);
+        return org.springframework.http.ResponseEntity.noContent().build();
+    }
 }

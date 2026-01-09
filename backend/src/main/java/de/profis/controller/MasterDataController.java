@@ -2,10 +2,7 @@ package de.profis.controller;
 
 import de.profis.model.*;
 import de.profis.repository.*;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -70,5 +67,29 @@ public class MasterDataController {
     @GetMapping("/betreuer")
     public List<Betreuer> getAllBetreuer() {
         return betreuerRepo.findAll();
+    }
+    @DeleteMapping("/students/{id}")
+    public org.springframework.http.ResponseEntity<String> deleteStudent(@PathVariable Long id) {
+        try {
+            if (!studentRepo.existsById(id)) return org.springframework.http.ResponseEntity.notFound().build();
+            studentRepo.deleteById(id);
+            return org.springframework.http.ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            // Passiert oft, wenn der Student noch eine Arbeit hat (Foreign Key Constraint)
+            return org.springframework.http.ResponseEntity.status(409)
+                    .body("Kann nicht gelöscht werden: Dieser Eintrag wird noch verwendet.");
+        }
+    }
+
+    @DeleteMapping("/betreuer/{id}")
+    public org.springframework.http.ResponseEntity<String> deleteBetreuer(@PathVariable Long id) {
+        try {
+            if (!betreuerRepo.existsById(id)) return org.springframework.http.ResponseEntity.notFound().build();
+            betreuerRepo.deleteById(id);
+            return org.springframework.http.ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            return org.springframework.http.ResponseEntity.status(409)
+                    .body("Kann nicht gelöscht werden: Dieser Eintrag wird noch verwendet.");
+        }
     }
 }
