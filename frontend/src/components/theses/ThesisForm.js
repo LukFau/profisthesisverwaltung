@@ -63,30 +63,21 @@ const ThesisForm = () => {
                 // Wenn Edit-Modus: Thesis laden
                 if (isEditMode) {
                     const thesisRes = await api.get(`/theses/${id}`);
-                    const t = thesisRes.data; // Das ist jetzt das flache DTO
-                    console.log("Geladene Thesis (DTO):", t);
+                    const t = thesisRes.data;
 
                     setFormData({
                         titel: t.titel || '',
                         typ: t.typ || 'Bachelorarbeit',
                         status: t.status || 'in Planung',
-
-                        // --- HIER WAR DER FEHLER: Wir nehmen jetzt die flachen IDs vom DTO ---
                         studierendenId: t.studierendenId || '',
                         studiengangId: t.studiengangId || '',
-                        pruefungsordnungId: t.poId || '', // Achtung: im DTO heißt es poId
+                        pruefungsordnungId: t.poId || '',
                         semesterId: t.semesterId || '',
-
-                        // Prüfer IDs kommen jetzt direkt
                         erstprueferId: t.erstprueferId || '',
                         zweitprueferId: t.zweitprueferId || '',
-
-                        // Zeitdaten kommen jetzt direkt (nicht mehr in t.zeitdaten)
                         anfangsdatum: t.anfangsdatum || '',
                         abgabedatum: t.abgabedatum || '',
                         kolloquiumsdatum: t.kolloquiumsdatum || '',
-
-                        // Noten kommen direkt
                         noteArbeit: t.noteArbeit || '',
                         noteKolloquium: t.noteKolloquium || ''
                     });
@@ -116,60 +107,67 @@ const ThesisForm = () => {
         }
     };
 
-    const getBetreuerIdByRole = (notenList, role) => {
-        if (!notenList) return '';
-        const entry = notenList.find(n => n.rolle === role);
-        return entry && entry.betreuer ? entry.betreuer.id : '';
-    };
-    const getNoteByRole = (notenList, role, type) => {
-        if (!notenList) return '';
-        const entry = notenList.find(n => n.rolle === role);
-        if (!entry) return '';
-        return type === "arbeit" ? (entry.noteArbeit || '') : (entry.noteKolloquium || '');
+    // --- NEU: FRISTEN BERECHNEN ---
+    const calculateDeadline = (startDate, type) => {
+        if (!startDate) return '';
+
+        let weeks = 0;
+        // Standardwerte: Bachelor 12 Wochen, Master 22 Wochen
+        if (type === 'Bachelorarbeit') weeks = 12;
+        else if (type === 'Masterarbeit') weeks = 22;
+        else return ''; // Bei Projektarbeiten etc. keine Automatik
+
+        const date = new Date(startDate);
+        if (isNaN(date.getTime())) return ''; // Gültiges Datum prüfen
+
+        date.setDate(date.getDate() + (weeks * 7));
+        return date.toISOString().split('T')[0]; // Format YYYY-MM-DD
     };
 
     // --- LOGIK: STUDIENGANG FILTERN ---
-    // Wir berechnen die Liste der Studiengänge dynamisch basierend auf dem gewählten Typ
     const filteredStudiengaenge = studiengaenge.filter(sg => {
         if (formData.typ === 'Bachelorarbeit') {
-            return sg.abschluss && sg.abschluss.startsWith('B'); // Zeigt nur B.Sc., B.Eng. etc.
+            return sg.abschluss && sg.abschluss.startsWith('B');
         }
         if (formData.typ === 'Masterarbeit') {
-            return sg.abschluss && sg.abschluss.startsWith('M'); // Zeigt nur M.Sc., M.Eng. etc.
+            return sg.abschluss && sg.abschluss.startsWith('M');
         }
-        return true; // Bei Projektarbeit etc. alles zeigen
+        return true;
     });
 
-    // --- LOGIK: CHANGE HANDLER MIT AUTOMATIK ---
+    // --- LOGIK: CHANGE HANDLER ---
     const handleChange = (e) => {
         const { name, value } = e.target;
 
         setFormData(prev => {
             const newData = { ...prev, [name]: value };
 
-            // A) Wenn sich der TYP ändert (Bachelor <-> Master), resetten wir Studiengang & PO
+            // A) Wenn sich der TYP ändert
             if (name === 'typ') {
                 newData.studiengangId = '';
                 newData.pruefungsordnungId = '';
+
+                // NEU: Frist aktualisieren (falls Startdatum schon gesetzt ist)
+                const newDeadline = calculateDeadline(prev.anfangsdatum, value);
+                if (newDeadline) newData.abgabedatum = newDeadline;
             }
 
-            // B) Wenn sich der STUDIENGANG ändert -> Automatisch passende PO suchen
+            // B) Wenn sich das ANFANGSDATUM ändert (NEU)
+            if (name === 'anfangsdatum') {
+                const newDeadline = calculateDeadline(value, prev.typ);
+                if (newDeadline) newData.abgabedatum = newDeadline;
+            }
+
+            // C) Wenn sich der STUDIENGANG ändert -> Automatisch passende PO suchen
             if (name === 'studiengangId') {
-                newData.pruefungsordnungId = ''; // Erstmal leeren
+                newData.pruefungsordnungId = '';
 
                 if (value) {
-                    // 1. Alle POs finden, die zu diesem Studiengang gehören
-                    // (Wir nehmen an, das Backend liefert POs mit geschachteltem 'studiengang' Objekt oder ID)
                     const relevantPos = pos.filter(p =>
                         p.studiengang && p.studiengang.id === parseInt(value)
                     );
-
-                    // 2. Die neueste PO automatisch auswählen
                     if (relevantPos.length > 0) {
-                        // Sortieren nach 'gueltigAb' Datum (neueste zuerst)
                         relevantPos.sort((a, b) => new Date(b.gueltigAb) - new Date(a.gueltigAb));
-
-                        // Die allerneueste als Standard setzen
                         newData.pruefungsordnungId = relevantPos[0].id;
                     }
                 }
@@ -205,9 +203,8 @@ const ThesisForm = () => {
         e.preventDefault();
 
         const payload = {
-            titel: formData.titel,
-            typ: formData.typ,
-            status: formData.status,
+            ...formData,
+            // Leere Strings zu null konvertieren für Backend
             studierendenId: formData.studierendenId || null,
             studiengangId: formData.studiengangId || null,
             pruefungsordnungId: formData.pruefungsordnungId || null,
@@ -327,7 +324,6 @@ const ThesisForm = () => {
                             onChange={handleChange}
                         >
                             <option value="">Bitte wählen...</option>
-                            {/* Wir mappen hier über die GEFILTERTE Liste */}
                             {filteredStudiengaenge.map(sg => (
                                 <option key={sg.id} value={sg.id}>{sg.bezeichnung} ({sg.abschluss})</option>
                             ))}
@@ -341,11 +337,9 @@ const ThesisForm = () => {
                         <label className="form-label">Prüfungsordnung</label>
                         <select className="form-select" name="pruefungsordnungId" value={formData.pruefungsordnungId} onChange={handleChange}>
                             <option value="">Bitte wählen...</option>
-                            {/* Optional: Hier könnte man auch noch filtern, dass nur POs zum gewählten SG angezeigt werden */}
                             {pos.map(p => (
                                 <option key={p.id} value={p.id}>
                                     {p.bezeichnung}
-                                    {/* Falls du im Backend Studiengang-Namen mitlieferst, könnte man den hier anzeigen */}
                                 </option>
                             ))}
                         </select>
@@ -393,7 +387,7 @@ const ThesisForm = () => {
                         <input type="date" className="form-control" name="anfangsdatum" value={formData.anfangsdatum} onChange={handleChange} />
                     </div>
                     <div className="col-md-4">
-                        <label className="form-label">Abgabedatum</label>
+                        <label className="form-label">Abgabedatum <small className="text-muted">(Automatik)</small></label>
                         <input type="date" className="form-control" name="abgabedatum" value={formData.abgabedatum} onChange={handleChange} />
                     </div>
                     <div className="col-md-4">

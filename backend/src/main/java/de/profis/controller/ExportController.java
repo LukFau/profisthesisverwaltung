@@ -7,6 +7,7 @@ import de.profis.repository.BetreuerRepository;
 import de.profis.repository.StudierendeRepository;
 import de.profis.repository.WissenschaftlicheArbeitRepository;
 import de.profis.service.ExcelExportService;
+import de.profis.service.SwsCalculationService; // Import hinzufügen
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -19,7 +20,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/export") // Achte darauf, dass "/api" passt, sonst nur "/export"
+@RequestMapping("/api/export")
 @CrossOrigin(origins = "http://localhost:3000")
 public class ExportController {
 
@@ -27,12 +28,19 @@ public class ExportController {
     private final WissenschaftlicheArbeitRepository thesisRepo;
     private final StudierendeRepository studentRepo;
     private final BetreuerRepository betreuerRepo;
+    private final SwsCalculationService swsService; // Hier gehört das Feld hin!
 
-    public ExportController(ExcelExportService exportService, WissenschaftlicheArbeitRepository thesisRepo, StudierendeRepository studentRepo, BetreuerRepository betreuerRepo) {
+    // Konstruktor aktualisieren: SwsCalculationService hinzufügen
+    public ExportController(ExcelExportService exportService,
+                            WissenschaftlicheArbeitRepository thesisRepo,
+                            StudierendeRepository studentRepo,
+                            BetreuerRepository betreuerRepo,
+                            SwsCalculationService swsService) {
         this.exportService = exportService;
         this.thesisRepo = thesisRepo;
         this.studentRepo = studentRepo;
         this.betreuerRepo = betreuerRepo;
+        this.swsService = swsService;
     }
 
     // Export Thesen (mit Filter-Liste)
@@ -43,7 +51,6 @@ public class ExportController {
         if (status == null || status.isEmpty() || status.contains("Alle")) {
             theses = thesisRepo.findAll();
         } else {
-            // Filtert alle Thesen, deren Status in der Liste enthalten ist
             theses = thesisRepo.findAll().stream()
                     .filter(t -> status.contains(t.getStatus()))
                     .collect(Collectors.toList());
@@ -74,13 +81,12 @@ public class ExportController {
             @RequestParam(defaultValue = "false") boolean includeTheses,
             @RequestParam(defaultValue = "false") boolean includeStudents,
             @RequestParam(defaultValue = "false") boolean includeBetreuer,
-            @RequestParam(required = false) List<String> status // Filter für Theses
+            @RequestParam(required = false) List<String> status
     ) {
         List<WissenschaftlicheArbeit> theses = null;
         List<Studierende> students = null;
         List<Betreuer> betreuer = null;
 
-        // 1. Theses laden (falls gewünscht)
         if (includeTheses) {
             if (status == null || status.isEmpty() || status.contains("Alle")) {
                 theses = thesisRepo.findAll();
@@ -91,20 +97,28 @@ public class ExportController {
             }
         }
 
-        // 2. Studenten laden (falls gewünscht)
         if (includeStudents) {
             students = studentRepo.findAll();
         }
 
-        // 3. Betreuer laden (falls gewünscht)
         if (includeBetreuer) {
             betreuer = betreuerRepo.findAll();
         }
 
-        // Service aufrufen
         ByteArrayInputStream in = exportService.exportCombined(theses, students, betreuer);
-
         return createResponse(in, "export_daten.xlsx");
+    }
+
+    // --- NEU: SWS Export ---
+    @GetMapping("/sws")
+    public ResponseEntity<Resource> exportSws(@RequestParam Long semesterId) {
+        // Daten laden
+        List<de.profis.dto.SwsCalculationDto> data = swsService.getAllSwsForSemester(semesterId);
+
+        // Exportieren
+        ByteArrayInputStream in = exportService.exportSws(data);
+
+        return createResponse(in, "deputat_sws.xlsx");
     }
 
     private ResponseEntity<Resource> createResponse(ByteArrayInputStream in, String filename) {

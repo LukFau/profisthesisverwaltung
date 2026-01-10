@@ -146,4 +146,42 @@ public class ExcelExportService {
         style.setFont(font);
         return style;
     }
+
+    public java.io.ByteArrayInputStream exportSws(java.util.List<de.profis.dto.SwsCalculationDto> data) {
+        try (Workbook workbook = new XSSFWorkbook(); java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("Deputat SWS");
+
+            // Header
+            Row header = sheet.createRow(0);
+            String[] cols = {"Name", "Semester", "Anzahl Arbeiten", "Berechnet (SWS)", "Anrechenbar (SWS)", "Limit"};
+            for(int i=0; i<cols.length; i++) {
+                Cell cell = header.createCell(i);
+                cell.setCellValue(cols[i]);
+                CellStyle style = workbook.createCellStyle();
+                Font font = workbook.createFont();
+                font.setBold(true);
+                style.setFont(font);
+                cell.setCellStyle(style);
+            }
+
+            // Data
+            int rowIdx = 1;
+            for (de.profis.dto.SwsCalculationDto dto : data) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(dto.getBetreuerName());
+                row.createCell(1).setCellValue(dto.getSemesterName());
+                row.createCell(2).setCellValue(dto.getAnzahlArbeiten());
+                row.createCell(3).setCellValue(dto.getSwsBerechnet());
+                row.createCell(4).setCellValue(dto.getSwsAnrechenbar());
+                row.createCell(5).setCellValue(dto.getLimit());
+            }
+
+            for(int i=0; i<cols.length; i++) sheet.autoSizeColumn(i);
+
+            workbook.write(out);
+            return new java.io.ByteArrayInputStream(out.toByteArray());
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Export failed: " + e.getMessage());
+        }
+    }
 }

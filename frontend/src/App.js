@@ -8,6 +8,7 @@ import BetreuerForm from './components/forms/BetreuerForm';
 import DashboardHome from './components/dashboard/DashboardHome'; // <--- Importieren
 import BetreuerList from './components/betreuer/BetreuerList';
 import StudentList from './components/students/StudentList';
+import SwsList from './components/sws/SwsList';
 function App() {
     return (
         <Router>
@@ -18,7 +19,7 @@ function App() {
                     {/* Startseite ist jetzt die Liste, oder du änderst es zu DashboardHome */}
                     <Route index element={<DashboardHome />} />
 
-                    {/* Das neue Dashboard mit den Kacheln */}
+
                     <Route path="theses" element={<ThesisList />} />
 
                     {/* Formulare */}
@@ -28,6 +29,7 @@ function App() {
                     <Route path="create-betreuer" element={<BetreuerForm />} />
                     <Route path="betreuer" element={<BetreuerList />} />
                     <Route path="students" element={<StudentList />} />
+                    <Route path="sws" element={<SwsList />} />
 
                 </Route>
             </Routes>

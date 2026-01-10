@@ -78,7 +78,7 @@ const Sidebar = () => {
                     <li><NavLink to="/theses" className={({ isActive }) => isActive ? "menu-item active" : "menu-item"}><span className="menu-icon">📁</span> Arbeiten</NavLink></li>
                     <li><NavLink to="/students" className={({ isActive }) => isActive ? "menu-item active" : "menu-item"}><span className="menu-icon">🎓</span> Studierende</NavLink></li>
                     <li><NavLink to="/betreuer" className={({ isActive }) => isActive ? "menu-item active" : "menu-item"}><span className="menu-icon">👨‍🏫</span> Referenten</NavLink></li>
-
+                    <li><NavLink to="/sws" className={({ isActive }) => isActive ? "menu-item active" : "menu-item"}><span className="menu-icon">⏱️</span> SWS / Deputat</NavLink></li>
                     <div className="menu-label">SCHNELLZUGRIFF</div>
                     <li><NavLink to="/new" className="menu-item"><span className="menu-icon">+</span> Neue Arbeit</NavLink></li>
                     <li><NavLink to="/create-student" className="menu-item"><span className="menu-icon">+</span> Neuer Student</NavLink></li>
